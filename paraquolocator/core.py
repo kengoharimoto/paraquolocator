@@ -7,8 +7,10 @@ inside Jupyter notebooks or custom pipelines.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Generator, Iterator
 
@@ -194,6 +196,7 @@ class TextMatcher:
         self,
         source: list[str],
         target: list[str],
+        workers: int = 1,
     ) -> Iterator[dict]:
         """Find the single best match in *target* for each line in *source*.
 
@@ -207,16 +210,20 @@ class TextMatcher:
             Segments to search *from* (typically the shorter / query text).
         target:
             Segments to search *in*.
+        workers:
+            Number of parallel threads.  ``1`` (default) runs single-threaded.
+            ``-1`` uses all available CPU cores.  rapidfuzz releases the GIL
+            so threads provide genuine speedup on multi-core machines.
 
         Yields
         ------
         dict
             Keys: ``source_line``, ``source_text``, ``target_line``,
-            ``target_text``, ``score``.
+            ``target_text``, ``score``.  Results are yielded in source order.
         """
-        for i, segment in enumerate(source, start=1):
+        def _match_one(i: int, segment: str) -> dict | None:
             if self._should_skip(segment):
-                continue
+                return None
             result = process.extractOne(
                 segment,
                 target,
@@ -226,19 +233,41 @@ class TextMatcher:
             )
             if result is not None:
                 match_text, match_score, match_idx = result
-                yield {
+                return {
                     "source_line": i,
                     "source_text": segment.rstrip(),
                     "target_line": match_idx + 1,
                     "target_text": match_text.rstrip(),
                     "score": match_score,
                 }
+            return None
+
+        if workers == 1:
+            for i, segment in enumerate(source, start=1):
+                hit = _match_one(i, segment)
+                if hit is not None:
+                    yield hit
+        else:
+            max_workers = os.cpu_count() if workers == -1 else workers
+            hits: dict[int, dict] = {}
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {
+                    pool.submit(_match_one, i, seg): i
+                    for i, seg in enumerate(source, start=1)
+                }
+                for future in as_completed(futures):
+                    hit = future.result()
+                    if hit is not None:
+                        hits[hit["source_line"]] = hit
+            for i in sorted(hits):
+                yield hits[i]
 
     def find_quotes(
         self,
         source: list[str],
         target: list[str],
         progress: bool = True,
+        workers: int = 1,
     ) -> Iterator[dict]:
         """Find where segments of *source* appear embedded inside *target*.
 
@@ -255,24 +284,24 @@ class TextMatcher:
         progress:
             If ``True`` (default), write a percentage progress indicator to
             *stderr*.
+        workers:
+            Number of parallel threads.  ``1`` (default) runs single-threaded.
+            ``-1`` uses all available CPU cores.  This is the method that
+            benefits most from parallelism because it performs an O(n×m)
+            double loop.
 
         Yields
         ------
         dict
             Keys: ``source_line``, ``source_text``, ``target_chunk``,
             ``matched_excerpt``, ``target_text``, ``score``.
+            Results are yielded in source order.
         """
-        total = len(source)
-        for i, segment in enumerate(source, start=1):
-            if progress:
-                pct = i / total * 100
-                end = "\n" if i % 20 == 0 else " "
-                sys.stderr.write(f"{pct:.2f}{end}")
-                sys.stderr.flush()
-
+        def _search_line(i: int, segment: str) -> list[dict]:
+            """Search one source segment against all target chunks."""
             if self._should_skip(segment):
-                continue
-
+                return []
+            hits: list[dict] = []
             for j, chunk in enumerate(target, start=1):
                 if self._should_skip(chunk):
                     continue
@@ -283,15 +312,51 @@ class TextMatcher:
                     score_cutoff=self.score,
                 )
                 if result is not None and result.score > 0:
-                    yield {
+                    hits.append({
                         "source_line": i,
                         "source_text": segment.rstrip(),
                         "target_chunk": j,
                         "matched_excerpt": chunk[result.dest_start : result.dest_end],
                         "target_text": chunk.rstrip(),
                         "score": result.score,
-                    }
+                    })
+            return hits
 
-        if progress:
+        total = len(source)
+
+        if workers == 1:
+            for i, segment in enumerate(source, start=1):
+                if progress:
+                    pct = i / total * 100
+                    end = "\n" if i % 20 == 0 else " "
+                    sys.stderr.write(f"{pct:.2f}{end}")
+                    sys.stderr.flush()
+                yield from _search_line(i, segment)
+        else:
+            max_workers = os.cpu_count() if workers == -1 else workers
+            all_hits: dict[int, list[dict]] = {}
+            completed = 0
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {
+                    pool.submit(_search_line, i, seg): i
+                    for i, seg in enumerate(source, start=1)
+                }
+                for future in as_completed(futures):
+                    hits = future.result()
+                    i = futures[future]
+                    all_hits[i] = hits
+                    completed += 1
+                    if progress:
+                        pct = completed / total * 100
+                        end = "\n" if completed % 20 == 0 else " "
+                        sys.stderr.write(f"{pct:.2f}{end}")
+                        sys.stderr.flush()
+            if progress:
+                sys.stderr.write("\n")
+                sys.stderr.flush()
+            for i in sorted(all_hits):
+                yield from all_hits[i]
+
+        if workers == 1 and progress:
             sys.stderr.write("\n")
             sys.stderr.flush()

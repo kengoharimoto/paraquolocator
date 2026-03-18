@@ -65,7 +65,7 @@ def cmd_parallel(args: argparse.Namespace) -> None:
     if args.header:
         _print_tsv_header(_PARALLEL_COLUMNS)
 
-    for hit in matcher.compare_lines(source, target):
+    for hit in matcher.compare_lines(source, target, workers=args.workers):
         _print_tsv_row(hit, _PARALLEL_COLUMNS)
 
 
@@ -84,7 +84,9 @@ def cmd_quotes(args: argparse.Namespace) -> None:
     if args.header:
         _print_tsv_header(_QUOTES_COLUMNS)
 
-    for hit in matcher.find_quotes(source, target, progress=not args.no_progress):
+    for hit in matcher.find_quotes(
+        source, target, progress=not args.no_progress, workers=args.workers
+    ):
         _print_tsv_row(hit, _QUOTES_COLUMNS)
 
 
@@ -129,6 +131,14 @@ def _common_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         dest="no_progress",
         help="Suppress the stderr progress indicator",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Number of parallel threads (default: 1). Use -1 for all CPU cores. "
+             "Threads provide genuine speedup because rapidfuzz releases the GIL.",
     )
 
 

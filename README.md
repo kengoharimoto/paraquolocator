@@ -81,6 +81,9 @@ options:
                       Replaces the built-in Sanskrit colophon patterns when supplied.
   --header            Print a TSV header row before results
   --no-progress       Suppress the stderr progress indicator
+  --workers N         Parallel threads: 1 = single-threaded (default),
+                      -1 = all CPU cores. rapidfuzz releases the GIL so
+                      threads provide genuine speedup on multi-core machines.
 
 parallel only:
   --source-mode {line,danda,fixed}   default: line
