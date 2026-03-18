@@ -1,0 +1,32 @@
+# Default ignore patterns for paraquolocator
+# Each non-empty line is treated as a Python regular expression.
+# Lines starting with # are comments.
+#
+# These defaults target Advaita Vedānta manuscript colophons
+# (IAST transliteration).  Replace or extend this file for other corpora.
+
+# --- Colophon phrases (Śaṅkarācārya lineage) ---
+śrīmatparamahaṃsaparivrājak
+śiṣyasya śrīmacchaṃkarabhagavat
+paramahaṃsaparivrājakācāry
+pūjyapādaśiṣya
+
+# --- Chapter / section headings ---
+pratham.*dhyāya
+pratham.*pāda
+dvitīy.*dhyāy
+
+# --- Separator lines (dashes, underscores, equals) ---
+-{6,}
+_{4,}
+={5,}
+
+# --- Markup / percent signs ---
+^\%
+
+# --- Ellipsis rows ---
+(?:\. ){6,}
+
+# --- XML / TEI tags that occupy a whole line ---
+^\<[^>]*\>$
+^ *\<rdg.*\<\/rdg\>$
