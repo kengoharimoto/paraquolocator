@@ -21,15 +21,11 @@ Matching is powered by [rapidfuzz](https://github.com/maxbachmann/RapidFuzz).
 
 ## Installation
 
-```bash
-pip install -e .
-```
-
-Or install just the dependency and run the module directly:
+Install the one dependency, then run the script directly:
 
 ```bash
 pip install rapidfuzz
-python -m paraquolocator.cli --help
+python paraquolocator.py --help
 ```
 
 Requires **Python 3.10+**.
@@ -41,7 +37,7 @@ Requires **Python 3.10+**.
 ### Verse-to-verse parallel detection
 
 ```bash
-paraquolocator parallel base_text.txt parallel_text.txt
+python paraquolocator.py parallel base_text.txt parallel_text.txt
 ```
 
 Output columns (TSV):
@@ -53,7 +49,7 @@ Output columns (TSV):
 ### Locating verse quotations inside prose
 
 ```bash
-paraquolocator quotes verse_text.txt commentary.txt --header
+python paraquolocator.py quotes verse_text.txt commentary.txt --header
 ```
 
 Output columns (TSV):
@@ -120,28 +116,12 @@ regex_pattern_two
 
 ---
 
-## Python API
-
-```python
-from paraquolocator import TextMatcher, load_buffer
-
-matcher = TextMatcher(score=70)
-
-source = load_buffer("base_text.txt")                              # line mode
-target = load_buffer("commentary.txt", mode="fixed", chunk_size=500)
-
-for hit in matcher.find_quotes(source, target):
-    print(hit["source_line"], hit["score"], hit["matched_excerpt"])
-```
-
----
-
 ## Output format
 
 Results go to **stdout** as tab-separated values.  Redirect to a file:
 
 ```bash
-paraquolocator quotes verse.txt commentary.txt --header > results.tsv
+python paraquolocator.py quotes verse.txt commentary.txt --header > results.tsv
 ```
 
 Progress messages (percentages) go to **stderr** and can be suppressed with `--no-progress`.
