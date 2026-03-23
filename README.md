@@ -10,7 +10,7 @@ Matching is powered by [rapidfuzz](https://github.com/maxbachmann/RapidFuzz).
 
 - Two matching modes:
   - **`parallel`** — finds the single best match in a target text for each line in the source (full-string ratio; best for verse-to-verse comparison)
-  - **`quotes`** — finds every place a source line appears *embedded* inside a target chunk (partial ratio alignment; best for locating verse lines quoted inside prose)
+  - **`quotes`** *(experimental)* — finds every place a source line appears *embedded* inside a target chunk (partial ratio alignment; best for locating verse lines quoted inside prose). Results may be noisy and the approach is still under development.
 - Flexible text segmentation: by newline, by daṇḍa (`|`), or by fixed-length character chunks
 - Configurable similarity threshold, minimum segment length, and chunk size
 - Customisable ignore-pattern file (regex-per-line) to skip colophons, separators, and other boilerplate
@@ -19,7 +19,13 @@ Matching is powered by [rapidfuzz](https://github.com/maxbachmann/RapidFuzz).
 
 ---
 
-## Installation
+## Usage
+
+### Browser (no installation)
+
+Open `paraquolocator.html` in any modern browser. Upload your files, set options, and click Run. Results can be downloaded as TSV. Only the `parallel` mode is available in the browser version.
+
+### Command line
 
 Install the one dependency, then run the script directly:
 
@@ -32,7 +38,7 @@ Requires **Python 3.10+**.
 
 ---
 
-## Quick start
+## Quick start (command line)
 
 ### Verse-to-verse parallel detection
 
@@ -46,7 +52,7 @@ Output columns (TSV):
 |---|---|---|---|---|
 | 42 | deho 'yam… | 17 | deho 'yam… | 94 |
 
-### Locating verse quotations inside prose
+### Locating verse quotations inside prose *(experimental)*
 
 ```bash
 python3 paraquolocator.py quotes verse_text.txt commentary.txt --header

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paraquolocator</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --surface: #ffffff;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --text: #1a1a1a;
+      --muted: #777;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem 1.5rem; max-width: 1100px; margin: 0 auto; }
+
+    h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+    .subtitle { color: var(--muted); font-size: 0.88rem; margin-bottom: 2rem; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.25rem; }
+
+    .files { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .files { grid-template-columns: 1fr; } }
+
+    .field-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      font-size: 0.88rem;
+      color: var(--muted);
+      transition: border-color 0.15s;
+    }
+    .drop-zone:hover, .drop-zone.over { border-color: var(--accent); color: var(--accent); }
+    .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-zone .loaded { color: var(--accent); font-weight: 500; margin-top: 0.3rem; font-size: 0.82rem; }
+
+    .options { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+
+    .field { display: flex; flex-direction: column; gap: 0.35rem; }
+    select, input[type=number] {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 0.9rem;
+      background: white;
+      width: 100%;
+    }
+
+    .actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+
+    button.primary {
+      background: var(--accent); color: #fff; border: none;
+      padding: 0.55rem 1.4rem; border-radius: 6px; font-size: 0.95rem;
+      font-weight: 500; cursor: pointer;
+    }
+    button.primary:hover { opacity: 0.88; }
+    button.primary:disabled { opacity: 0.45; cursor: default; }
+
+    button.secondary {
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.45rem 1rem; border-radius: 6px; font-size: 0.85rem;
+      font-weight: 500; cursor: pointer;
+    }
+    button.secondary:hover { background: #eff6ff; }
+
+    .progress-wrap { display: none; margin-top: 1rem; }
+    .progress-bar { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s linear; }
+    .progress-label { font-size: 0.82rem; color: var(--muted); margin-top: 0.35rem; }
+
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .results-header h2 { font-size: 1rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    thead th {
+      text-align: left; padding: 0.5rem 0.7rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted); font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    tbody td { padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f5f8ff; }
+    .linenum { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+    .score-cell { font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+    .empty { text-align: center; color: var(--muted); padding: 2.5rem 1rem; font-size: 0.9rem; }
+
+    #results-section { display: none; }
+  </style>
+</head>
+<body>
+
+<h1>paraquolocator</h1>
+<p class="subtitle">Parallel passage detection · fuzzy string matching</p>
+
+<!-- File inputs -->
+<div class="card">
+  <div class="files">
+    <div>
+      <span class="field-label">Source file</span>
+      <div class="drop-zone" id="drop-source">
+        <input type="file" id="file-source" accept=".txt">
+        Drop or click to upload
+        <div class="loaded" id="name-source"></div>
+      </div>
+    </div>
+    <div>
+      <span class="field-label">Target file</span>
+      <div class="drop-zone" id="drop-target">
+        <input type="file" id="file-target" accept=".txt">
+        Drop or click to upload
+        <div class="loaded" id="name-target"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Options -->
+<div class="card">
+  <div class="options">
+    <div class="field">
+      <span class="field-label">Score cutoff</span>
+      <input type="number" id="opt-score" value="70" min="0" max="100">
+    </div>
+    <div class="field">
+      <span class="field-label">Min length</span>
+      <input type="number" id="opt-minlen" value="30" min="1">
+    </div>
+    <div class="field">
+      <span class="field-label">Source mode</span>
+      <select id="opt-smode">
+        <option value="line" selected>line</option>
+        <option value="danda">danda</option>
+        <option value="fixed">fixed</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="field-label">Target mode</span>
+      <select id="opt-tmode">
+        <option value="line" selected>line</option>
+        <option value="danda">danda</option>
+        <option value="fixed">fixed</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="field-label">Chunk size</span>
+      <input type="number" id="opt-chunk" value="500" min="1">
+    </div>
+    <div class="field">
+      <span class="field-label">Ignore file</span>
+      <div class="drop-zone" style="padding: 0.55rem 0.7rem; text-align: left;">
+        <input type="file" id="file-ignore" accept=".txt">
+        <span id="name-ignore" style="font-size:0.82rem;">Optional (.txt)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="btn-run" onclick="runMatch()">Run</button>
+    <button class="secondary" id="btn-cancel" onclick="cancelMatch()" style="display:none;">Cancel</button>
+  </div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label">Processing…</div>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="card" id="results-section">
+  <div class="results-header">
+    <h2 id="results-title">Results</h2>
+    <button class="secondary" onclick="downloadTSV()">Download TSV</button>
+  </div>
+  <div id="results-body"></div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+
+let sourceText = null, targetText = null, ignoreText = null;
+let currentResults = [];
+let cancelled = false;
+
+// ─── File handling ────────────────────────────────────────────────────────────
+
+function setupDrop(dropId, inputId, nameId, onLoad) {
+  const drop  = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  const name  = document.getElementById(nameId);
+
+  function handle(file) {
+    if (!file) return;
+    name.textContent = file.name;
+    const r = new FileReader();
+    r.onload = e => onLoad(e.target.result);
+    r.readAsText(file, 'utf-8');
+  }
+
+  input.addEventListener('change', () => handle(input.files[0]));
+  drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    handle(e.dataTransfer.files[0]);
+  });
+}
+
+setupDrop('drop-source', 'file-source', 'name-source', t => sourceText = t);
+setupDrop('drop-target', 'file-target', 'name-target', t => targetText = t);
+
+document.getElementById('file-ignore').addEventListener('change', function () {
+  if (!this.files[0]) return;
+  document.getElementById('name-ignore').textContent = this.files[0].name;
+  const r = new FileReader();
+  r.onload = e => ignoreText = e.target.result;
+  r.readAsText(this.files[0], 'utf-8');
+});
+
+// ─── Buffer loading ───────────────────────────────────────────────────────────
+
+function loadBuffer(text, mode, chunkSize) {
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (mode === 'line') {
+    return text.split('\n').map(l => l.replace(/\t/g, '    '));
+  }
+  if (mode === 'danda') {
+    const segs = [];
+    for (const line of text.split('\n'))
+      segs.push(...line.replace(/\t/g, '    ').split('|'));
+    return segs;
+  }
+  if (mode === 'fixed') {
+    const flat = text.replace(/\n/g, '¶').replace(/\t/g, '    ');
+    const out = [];
+    for (let i = 0; i < flat.length; i += chunkSize) out.push(flat.slice(i, i + chunkSize));
+    return out;
+  }
+  throw new Error('Unknown mode: ' + mode);
+}
+
+function loadIgnorePatterns(text) {
+  return text.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'))
+    .map(l => new RegExp(l));
+}
+
+// ─── Default ignore patterns ──────────────────────────────────────────────────
+
+const DEFAULT_PATTERNS = [
+  /śrīmatparamahaṃsaparivrājak/,
+  /śiṣyasya śrīmacchaṃkarabhagavat/,
+  /-{6,}/,
+  /_{4,}/,
+  /={5,}/,
+  /^\%/m,
+  /paramahaṃsaparivrājakācāry/,
+  /pūjyapādaśiṣya/,
+  /pratham.*dhyāya/,
+  /pratham.*pāda/,
+  /dvitīy.*dhyāy/,
+  /(?:\. ){6,}/,
+  /^\<[^>]*\>$/m,
+  /^ *\<rdg.*\<\/rdg\>$/m,
+];
+
+// ─── Fuzzy matching ───────────────────────────────────────────────────────────
+
+// Mirrors rapidfuzz utils.default_process: lowercase, replace non-word
+// Unicode chars with space, collapse whitespace, trim.
+function proc(s) {
+  return s.toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, ' ')
+          .trim();
+}
+
+// 2 * LCS(a,b) / (|a| + |b|) * 100  — same as rapidfuzz fuzz.ratio
+function ratio(a, b) {
+  if (!a && !b) return 100;
+  if (!a || !b) return 0;
+  const m = a.length, n = b.length;
+  // Quick length-based upper bound — skip obvious non-matches early
+  const maxPossible = 2 * Math.min(m, n) / (m + n) * 100;
+  // (caller checks cutoff before calling, but guard anyway)
+  if (maxPossible < 0) return 0;
+
+  let prev = new Int32Array(n + 1);
+  let curr = new Int32Array(n + 1);
+  for (let i = 0; i < m; i++) {
+    const ca = a[i];
+    for (let j = 1; j <= n; j++) {
+      curr[j] = ca === b[j - 1]
+        ? prev[j - 1] + 1
+        : (prev[j] > curr[j - 1] ? prev[j] : curr[j - 1]);
+    }
+    const tmp = prev; prev = curr; curr = tmp;
+    curr.fill(0);
+  }
+  return (2 * prev[n] / (m + n)) * 100;
+}
+
+function shouldSkip(seg, minLen, patterns) {
+  if (seg.length < minLen) return true;
+  return patterns.some(p => p.test(seg));
+}
+
+// ─── Core comparison ──────────────────────────────────────────────────────────
+
+async function compareLines(source, target, scoreCutoff, minLen, patterns, onProgress) {
+  // Pre-process all target segments once
+  const procTarget = target.map(proc);
+
+  const results = [];
+  const total = source.length;
+  const BATCH = 20; // yield to UI every N source lines
+
+  for (let i = 0; i < source.length; i++) {
+    if (i % BATCH === 0) {
+      onProgress(i / total);
+      await new Promise(r => setTimeout(r, 0));
+      if (cancelled) return null;
+    }
+
+    const seg = source[i];
+    if (shouldSkip(seg, minLen, patterns)) continue;
+    const pSeg = proc(seg);
+    if (!pSeg) continue;
+
+    let bestScore = scoreCutoff - 0.001, bestIdx = -1;
+
+    for (let j = 0; j < target.length; j++) {
+      const pTgt = procTarget[j];
+      if (!pTgt) continue;
+
+      // Upper-bound check: if lengths are too different, skip LCS entirely
+      const upper = 2 * Math.min(pSeg.length, pTgt.length) / (pSeg.length + pTgt.length) * 100;
+      if (upper < bestScore) continue;
+
+      const s = ratio(pSeg, pTgt);
+      if (s > bestScore) { bestScore = s; bestIdx = j; }
+    }
+
+    if (bestIdx >= 0) {
+      results.push({
+        source_line: i + 1,
+        source_text: seg.trimEnd(),
+        target_line: bestIdx + 1,
+        target_text: target[bestIdx].trimEnd(),
+        score: Math.round(bestScore),
+      });
+    }
+  }
+
+  onProgress(1);
+  return results;
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+
+async function runMatch() {
+  if (!sourceText) { alert('Please upload a source file.'); return; }
+  if (!targetText) { alert('Please upload a target file.'); return; }
+
+  const scoreCutoff = parseFloat(document.getElementById('opt-score').value) || 70;
+  const minLen      = parseInt(document.getElementById('opt-minlen').value)  || 30;
+  const sMode       = document.getElementById('opt-smode').value;
+  const tMode       = document.getElementById('opt-tmode').value;
+  const chunkSize   = parseInt(document.getElementById('opt-chunk').value)   || 500;
+  const patterns    = ignoreText ? loadIgnorePatterns(ignoreText) : DEFAULT_PATTERNS;
+
+  const source = loadBuffer(sourceText, sMode, chunkSize);
+  const target = loadBuffer(targetText, tMode, chunkSize);
+
+  const btn          = document.getElementById('btn-run');
+  const btnCancel    = document.getElementById('btn-cancel');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressFill = document.getElementById('progress-fill');
+  const progressLabel= document.getElementById('progress-label');
+
+  cancelled = false;
+  btn.disabled = true;
+  btnCancel.style.display = '';
+  progressWrap.style.display = 'block';
+  progressFill.style.width = '0%';
+  progressLabel.textContent = 'Processing…';
+
+  const results = await compareLines(source, target, scoreCutoff, minLen, patterns, pct => {
+    progressFill.style.width = (pct * 100).toFixed(1) + '%';
+    progressLabel.textContent = `Processing… ${(pct * 100).toFixed(0)}%`;
+  });
+
+  btn.disabled = false;
+  btnCancel.style.display = 'none';
+
+  if (results === null) {
+    progressLabel.textContent = 'Cancelled.';
+    return;
+  }
+
+  progressLabel.textContent = `Done — ${results.length} match${results.length !== 1 ? 'es' : ''} found.`;
+  currentResults = results;
+  renderResults(results);
+}
+
+function cancelMatch() {
+  cancelled = true;
+}
+
+function renderResults(results) {
+  const section = document.getElementById('results-section');
+  const body    = document.getElementById('results-body');
+
+  document.getElementById('results-title').textContent = `Results (${results.length})`;
+  section.style.display = 'block';
+
+  if (results.length === 0) {
+    body.innerHTML = '<div class="empty">No matches found. Try lowering the score cutoff.</div>';
+    section.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+
+  const rows = results.map(r => `<tr>
+    <td class="linenum">${r.source_line}</td>
+    <td>${esc(r.source_text)}</td>
+    <td class="linenum">${r.target_line}</td>
+    <td>${esc(r.target_text)}</td>
+    <td class="score-cell">${r.score}</td>
+  </tr>`).join('');
+
+  body.innerHTML = `<table>
+    <thead><tr>
+      <th>Src #</th><th>Source text</th><th>Tgt #</th><th>Target text</th><th>Score</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function downloadTSV() {
+  if (!currentResults.length) return;
+  const cols = ['source_line','source_text','target_line','target_text','score'];
+  const lines = [
+    cols.join('\t'),
+    ...currentResults.map(r => cols.map(c => r[c]).join('\t')),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/tab-separated-values' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'paraquolocator_results.tsv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
