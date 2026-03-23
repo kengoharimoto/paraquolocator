@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paraquolocator · command builder</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --surface: #fff;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --text: #1a1a1a;
+      --muted: #777;
+      --code-bg: #1e1e2e;
+      --code-text: #cdd6f4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem 1.5rem; max-width: 780px; margin: 0 auto; }
+
+    h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+    .subtitle { color: var(--muted); font-size: 0.88rem; margin-bottom: 2rem; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    .card h2 { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 1.1rem; }
+
+    .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .hint { font-size: 0.78rem; color: var(--muted); }
+
+    input[type=text], input[type=number], select {
+      padding: 0.45rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 0.9rem;
+      background: #fff;
+      width: 100%;
+    }
+    input[type=text]:focus, input[type=number]:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+
+    .toggle-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; }
+    .toggle-row:last-child { margin-bottom: 0; }
+    .toggle-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+    .toggle-row label { font-size: 0.88rem; font-weight: 400; cursor: pointer; margin: 0; }
+
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tab {
+      padding: 0.45rem 1.1rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .output-wrap {
+      background: var(--code-bg);
+      border-radius: 8px;
+      padding: 1.1rem 1.25rem;
+      position: relative;
+    }
+    .output-wrap code {
+      font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.88rem;
+      color: var(--code-text);
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: block;
+      padding-right: 4rem;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background: #313244;
+      color: #cdd6f4;
+      border: none;
+      border-radius: 5px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .copy-btn:hover { background: #45475a; }
+    .copy-btn.copied { color: #a6e3a1; }
+
+    kbd {
+      font-family: ui-monospace, monospace;
+      font-size: 0.78rem;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 0.1rem 0.35rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>paraquolocator</h1>
+<p class="subtitle">Command builder</p>
+
+<!-- Mode tabs -->
+<div class="tab-bar">
+  <button class="tab active" onclick="setMode('parallel', this)">parallel</button>
+  <button class="tab" onclick="setMode('quotes', this)">quotes</button>
+</div>
+
+<!-- Files -->
+<div class="card">
+  <h2>Files</h2>
+  <p class="hint" style="margin-bottom: 0.5rem;">Enter the full paths to your files (e.g. <code>/Users/you/texts/base.txt</code>). These cannot be detected automatically.</p>
+  <p class="hint" style="margin-bottom: 1rem;">On a Mac: right-click the file in Finder, hold <kbd>Option</kbd>, choose <strong>Copy … as Pathname</strong>, then paste here.</p>
+  <div class="row">
+    <div class="field">
+      <label for="source">Source file</label>
+      <input type="text" id="source" placeholder="source.txt" oninput="update()">
+    </div>
+    <div class="field">
+      <label for="target">Target file</label>
+      <input type="text" id="target" placeholder="target.txt" oninput="update()">
+    </div>
+  </div>
+</div>
+
+<!-- Segmentation -->
+<div class="card">
+  <h2>Segmentation</h2>
+  <div class="row">
+    <div class="field">
+      <label for="source-mode">Source mode</label>
+      <select id="source-mode" onchange="update()">
+        <option value="line">line</option>
+        <option value="danda">danda</option>
+        <option value="fixed">fixed</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="target-mode">Target mode</label>
+      <select id="target-mode" onchange="update()">
+        <option value="line">line</option>
+        <option value="danda">danda</option>
+        <option value="fixed">fixed</option>
+      </select>
+    </div>
+  </div>
+  <div class="field" id="chunk-field">
+    <label for="chunk-size">Chunk size <span class="hint">(characters, for fixed mode)</span></label>
+    <input type="number" id="chunk-size" value="500" min="1" oninput="update()">
+  </div>
+</div>
+
+<!-- Matching -->
+<div class="card">
+  <h2>Matching</h2>
+  <div class="row">
+    <div class="field">
+      <label for="score">Score cutoff <span class="hint">(0–100)</span></label>
+      <input type="number" id="score" min="0" max="100" placeholder="default" oninput="update()">
+    </div>
+    <div class="field">
+      <label for="min-length">Min length <span class="hint">(characters)</span></label>
+      <input type="number" id="min-length" min="1" placeholder="default (30)" oninput="update()">
+    </div>
+  </div>
+  <div class="field">
+    <label for="workers">Workers <span class="hint">(threads; -1 = all CPU cores)</span></label>
+    <input type="number" id="workers" placeholder="default (1)" oninput="update()">
+  </div>
+</div>
+
+<!-- Other options -->
+<div class="card">
+  <h2>Other options</h2>
+  <div class="field" style="margin-bottom:1rem;">
+    <label for="ignore-file">Ignore file <span class="hint">(optional)</span></label>
+    <input type="text" id="ignore-file" placeholder="ignore_patterns.txt" oninput="update()">
+  </div>
+  <div class="toggle-row">
+    <input type="checkbox" id="opt-header" onchange="update()">
+    <label for="opt-header"><code>--header</code> — print TSV header row</label>
+  </div>
+  <div class="toggle-row">
+    <input type="checkbox" id="opt-no-progress" onchange="update()">
+    <label for="opt-no-progress"><code>--no-progress</code> — suppress progress indicator</label>
+  </div>
+</div>
+
+<!-- Output -->
+<div class="output-wrap">
+  <code id="output"></code>
+  <button class="copy-btn" id="copy-btn" onclick="copyCommand()">Copy</button>
+</div>
+
+<script>
+let currentMode = 'parallel';
+
+// Derive path to paraquolocator.py from this page's own location.
+// Works for file:// and http:// alike; falls back to bare filename.
+function scriptPath() {
+  if (window.location.protocol === 'file:') {
+    const dir = decodeURIComponent(window.location.pathname.replace(/\/[^/]+$/, ''));
+    return dir + '/paraquolocator.py';
+  }
+  if (window.location.protocol.startsWith('http')) {
+    const dir = window.location.pathname.replace(/\/[^/]+$/, '');
+    return (dir === '' ? '' : dir) + '/paraquolocator.py';
+  }
+  return 'paraquolocator.py';
+}
+
+const DEFAULTS = {
+  parallel: { sourceMode: 'line', targetMode: 'line', chunkSize: 30,  score: 70 },
+  quotes:   { sourceMode: 'line', targetMode: 'fixed', chunkSize: 500, score: 60 },
+};
+
+function setMode(mode, btn) {
+  currentMode = mode;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+
+  const d = DEFAULTS[mode];
+  document.getElementById('source-mode').value = d.sourceMode;
+  document.getElementById('target-mode').value = d.targetMode;
+  document.getElementById('chunk-size').value   = d.chunkSize;
+  document.getElementById('score').placeholder  = `default (${d.score})`;
+
+  update();
+}
+
+function update() {
+  const source     = document.getElementById('source').value.trim();
+  const target     = document.getElementById('target').value.trim();
+  const sourceMode = document.getElementById('source-mode').value;
+  const targetMode = document.getElementById('target-mode').value;
+  const chunkSize  = document.getElementById('chunk-size').value.trim();
+  const score      = document.getElementById('score').value.trim();
+  const minLength  = document.getElementById('min-length').value.trim();
+  const workers    = document.getElementById('workers').value.trim();
+  const ignoreFile = document.getElementById('ignore-file').value.trim();
+  const header     = document.getElementById('opt-header').checked;
+  const noProgress = document.getElementById('opt-no-progress').checked;
+
+  const d = DEFAULTS[currentMode];
+
+  // Show chunk-size field only when either mode is fixed
+  const needsChunk = sourceMode === 'fixed' || targetMode === 'fixed';
+  document.getElementById('chunk-field').style.display = needsChunk ? '' : 'none';
+
+  const parts = [`python3 ${scriptPath()}`, currentMode];
+
+  parts.push(source || 'SOURCE');
+  parts.push(target || 'TARGET');
+
+  if (sourceMode !== d.sourceMode) parts.push(`--source-mode ${sourceMode}`);
+  if (targetMode !== d.targetMode) parts.push(`--target-mode ${targetMode}`);
+  if (needsChunk && chunkSize && parseInt(chunkSize) !== d.chunkSize)
+    parts.push(`--chunk-size ${chunkSize}`);
+  if (score)      parts.push(`--score ${score}`);
+  if (minLength)  parts.push(`--min-length ${minLength}`);
+  if (workers)    parts.push(`--workers ${workers}`);
+  if (ignoreFile) parts.push(`--ignore-file ${ignoreFile}`);
+  if (header)     parts.push('--header');
+  if (noProgress) parts.push('--no-progress');
+
+  document.getElementById('output').textContent = parts.join(' ');
+}
+
+function copyCommand() {
+  const text = document.getElementById('output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// Initialise
+setMode('parallel', document.querySelector('.tab.active'));
+</script>
+</body>
+</html>
