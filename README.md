@@ -25,7 +25,7 @@ Install the one dependency, then run the script directly:
 
 ```bash
 pip install rapidfuzz
-python paraquolocator.py --help
+python3 paraquolocator.py --help
 ```
 
 Requires **Python 3.10+**.
@@ -37,7 +37,7 @@ Requires **Python 3.10+**.
 ### Verse-to-verse parallel detection
 
 ```bash
-python paraquolocator.py parallel base_text.txt parallel_text.txt
+python3 paraquolocator.py parallel base_text.txt parallel_text.txt
 ```
 
 Output columns (TSV):
@@ -49,7 +49,7 @@ Output columns (TSV):
 ### Locating verse quotations inside prose
 
 ```bash
-python paraquolocator.py quotes verse_text.txt commentary.txt --header
+python3 paraquolocator.py quotes verse_text.txt commentary.txt --header
 ```
 
 Output columns (TSV):
@@ -121,7 +121,7 @@ regex_pattern_two
 Results go to **stdout** as tab-separated values.  Redirect to a file:
 
 ```bash
-python paraquolocator.py quotes verse.txt commentary.txt --header > results.tsv
+python3 paraquolocator.py quotes verse.txt commentary.txt --header > results.tsv
 ```
 
 Progress messages (percentages) go to **stderr** and can be suppressed with `--no-progress`.
