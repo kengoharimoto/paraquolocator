@@ -188,7 +188,15 @@
 <div class="card" id="results-section">
   <div class="results-header">
     <h2 id="results-title">Results</h2>
-    <button class="secondary" onclick="downloadTSV()">Download TSV</button>
+    <div style="display:flex; gap:0.5rem; align-items:center;">
+      <select id="dl-format" onchange="updateDownloadBtn()" style="font-size:0.85rem; padding:0.3rem 0.5rem;">
+        <option value="tsv">TSV</option>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+        <option value="markdown">Markdown</option>
+      </select>
+      <button class="secondary" id="btn-download" onclick="downloadResults()">Download TSV</button>
+    </div>
   </div>
   <div id="results-body"></div>
 </div>
@@ -461,17 +469,52 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function downloadTSV() {
+function updateDownloadBtn() {
+  const fmt = document.getElementById('dl-format').value;
+  document.getElementById('btn-download').textContent =
+    'Download ' + fmt.toUpperCase();
+}
+
+function downloadResults() {
   if (!currentResults.length) return;
+  const fmt  = document.getElementById('dl-format').value;
   const cols = ['source_line','source_text','target_line','target_text','score'];
-  const lines = [
-    cols.join('\t'),
-    ...currentResults.map(r => cols.map(c => r[c]).join('\t')),
-  ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/tab-separated-values' });
+  let content, mime, ext;
+
+  if (fmt === 'tsv') {
+    const lines = [cols.join('\t'), ...currentResults.map(r => cols.map(c => r[c]).join('\t'))];
+    content = lines.join('\n');
+    mime = 'text/tab-separated-values';
+    ext  = 'tsv';
+  } else if (fmt === 'csv') {
+    function csvCell(v) {
+      const s = String(v);
+      return (s.includes(',') || s.includes('"') || s.includes('\n'))
+        ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    const lines = [cols.join(','), ...currentResults.map(r => cols.map(c => csvCell(r[c])).join(','))];
+    content = lines.join('\n');
+    mime = 'text/csv';
+    ext  = 'csv';
+  } else if (fmt === 'json') {
+    content = JSON.stringify(currentResults, null, 2);
+    mime = 'application/json';
+    ext  = 'json';
+  } else if (fmt === 'markdown') {
+    const header = '| ' + cols.join(' | ') + ' |';
+    const sep    = '| ' + cols.map(() => '---').join(' | ') + ' |';
+    const rows   = currentResults.map(r =>
+      '| ' + cols.map(c => String(r[c]).replace(/\|/g, '\\|')).join(' | ') + ' |'
+    );
+    content = [header, sep, ...rows].join('\n');
+    mime = 'text/markdown';
+    ext  = 'md';
+  }
+
+  const blob = new Blob([content], { type: mime });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'paraquolocator_results.tsv';
+  a.download = `paraquolocator_results.${ext}`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

@@ -11,6 +11,8 @@ Output is tab-separated (TSV) on stdout; progress messages go to stderr.
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 import os
 import re
 import sys
@@ -195,8 +197,26 @@ _PARALLEL_COLUMNS = ["source_line", "source_text", "target_line", "target_text",
 _QUOTES_COLUMNS = ["source_line", "source_text", "target_chunk", "matched_excerpt", "target_text", "score"]
 
 
-def _print_row(row: dict, columns: list[str]) -> None:
-    print("\t".join(str(row[col]) for col in columns))
+def _write_output(results: list[dict], columns: list[str], fmt: str, header: bool) -> None:
+    if fmt == "tsv":
+        if header:
+            print("\t".join(columns))
+        for row in results:
+            print("\t".join(str(row[col]) for col in columns))
+    elif fmt == "csv":
+        writer = csv.writer(sys.stdout)
+        if header:
+            writer.writerow(columns)
+        for row in results:
+            writer.writerow([row[col] for col in columns])
+    elif fmt == "json":
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+    elif fmt == "markdown":
+        print("| " + " | ".join(columns) + " |")
+        print("| " + " | ".join("---" for _ in columns) + " |")
+        for row in results:
+            cells = [str(row[col]).replace("|", "\\|") for col in columns]
+            print("| " + " | ".join(cells) + " |")
 
 
 def cmd_parallel(args: argparse.Namespace) -> None:
@@ -205,10 +225,8 @@ def cmd_parallel(args: argparse.Namespace) -> None:
     matcher = TextMatcher(score=score, min_length=args.min_length, ignore_patterns=ignore)
     source = load_buffer(args.source, mode=args.source_mode, chunk_size=args.chunk_size)
     target = load_buffer(args.target, mode=args.target_mode, chunk_size=args.chunk_size)
-    if args.header:
-        print("\t".join(_PARALLEL_COLUMNS))
-    for hit in matcher.compare_lines(source, target, workers=args.workers):
-        _print_row(hit, _PARALLEL_COLUMNS)
+    results = list(matcher.compare_lines(source, target, workers=args.workers))
+    _write_output(results, _PARALLEL_COLUMNS, args.format, args.header)
 
 
 def cmd_quotes(args: argparse.Namespace) -> None:
@@ -217,10 +235,8 @@ def cmd_quotes(args: argparse.Namespace) -> None:
     matcher = TextMatcher(score=score, min_length=args.min_length, ignore_patterns=ignore)
     source = load_buffer(args.source, mode=args.source_mode)
     target = load_buffer(args.target, mode=args.target_mode, chunk_size=args.chunk_size)
-    if args.header:
-        print("\t".join(_QUOTES_COLUMNS))
-    for hit in matcher.find_quotes(source, target, progress=not args.no_progress, workers=args.workers):
-        _print_row(hit, _QUOTES_COLUMNS)
+    results = list(matcher.find_quotes(source, target, progress=not args.no_progress, workers=args.workers))
+    _write_output(results, _QUOTES_COLUMNS, args.format, args.header)
 
 
 def _common_args(parser: argparse.ArgumentParser) -> None:
@@ -233,7 +249,9 @@ def _common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ignore-file", metavar="FILE", dest="ignore_file", default=None,
                         help="File of regex patterns to skip (one per line, # = comment). "
                              "Replaces the built-in Sanskrit colophon patterns when supplied.")
-    parser.add_argument("--header", action="store_true", help="Print a TSV header row before results")
+    parser.add_argument("--format", choices=["tsv", "csv", "json", "markdown"], default="tsv",
+                        help="Output format (default: tsv). Header is always included for json and markdown.")
+    parser.add_argument("--header", action="store_true", help="Print a header row (tsv and csv only)")
     parser.add_argument("--no-progress", action="store_true", dest="no_progress",
                         help="Suppress the stderr progress indicator")
     parser.add_argument("--workers", type=int, default=1, metavar="N",

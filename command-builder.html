@@ -186,13 +186,24 @@
 <!-- Other options -->
 <div class="card">
   <h2>Other options</h2>
-  <div class="field" style="margin-bottom:1rem;">
-    <label for="ignore-file">Ignore file <span class="hint">(optional)</span></label>
-    <input type="text" id="ignore-file" placeholder="ignore_patterns.txt" oninput="update()">
+  <div class="row" style="margin-bottom:1rem;">
+    <div class="field">
+      <label for="format">Output format</label>
+      <select id="format" onchange="update()">
+        <option value="tsv">TSV</option>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+        <option value="markdown">Markdown</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="ignore-file">Ignore file <span class="hint">(optional)</span></label>
+      <input type="text" id="ignore-file" placeholder="ignore_patterns.txt" oninput="update()">
+    </div>
   </div>
   <div class="toggle-row">
     <input type="checkbox" id="opt-header" onchange="update()">
-    <label for="opt-header"><code>--header</code> — print TSV header row</label>
+    <label for="opt-header"><code>--header</code> — print header row (tsv and csv only)</label>
   </div>
   <div class="toggle-row">
     <input type="checkbox" id="opt-no-progress" onchange="update()">
@@ -251,6 +262,7 @@ function update() {
   const score      = document.getElementById('score').value.trim();
   const minLength  = document.getElementById('min-length').value.trim();
   const workers    = document.getElementById('workers').value.trim();
+  const format     = document.getElementById('format').value;
   const ignoreFile = document.getElementById('ignore-file').value.trim();
   const header     = document.getElementById('opt-header').checked;
   const noProgress = document.getElementById('opt-no-progress').checked;
@@ -270,12 +282,13 @@ function update() {
   if (targetMode !== d.targetMode) parts.push(`--target-mode ${targetMode}`);
   if (needsChunk && chunkSize && parseInt(chunkSize) !== d.chunkSize)
     parts.push(`--chunk-size ${chunkSize}`);
-  if (score)      parts.push(`--score ${score}`);
-  if (minLength)  parts.push(`--min-length ${minLength}`);
-  if (workers)    parts.push(`--workers ${workers}`);
-  if (ignoreFile) parts.push(`--ignore-file ${ignoreFile}`);
-  if (header)     parts.push('--header');
-  if (noProgress) parts.push('--no-progress');
+  if (score)              parts.push(`--score ${score}`);
+  if (minLength)          parts.push(`--min-length ${minLength}`);
+  if (workers)            parts.push(`--workers ${workers}`);
+  if (format !== 'tsv')   parts.push(`--format ${format}`);
+  if (ignoreFile)         parts.push(`--ignore-file ${ignoreFile}`);
+  if (header)             parts.push('--header');
+  if (noProgress)         parts.push('--no-progress');
 
   document.getElementById('output').textContent = parts.join(' ');
 }
