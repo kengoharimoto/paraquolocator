@@ -246,7 +246,7 @@
     <div class="file-label" id="wrap-source">
       <span>Source</span>
       <div class="drop-btn">
-        <input type="file" id="file-source" accept=".txt">
+        <input type="file" id="file-source" accept=".txt,.tsv,.csv,text/plain">
         <button id="btn-source">Text…</button>
       </div>
       <strong id="name-source" title="">none</strong>
@@ -255,7 +255,7 @@
     <div class="file-label" id="wrap-target">
       <span>Target</span>
       <div class="drop-btn">
-        <input type="file" id="file-target" accept=".txt">
+        <input type="file" id="file-target" accept=".txt,.tsv,.csv,text/plain">
         <button id="btn-target">Text…</button>
       </div>
       <strong id="name-target" title="">none</strong>
@@ -273,7 +273,8 @@
     <!-- Parallels pane -->
     <div id="pane-parallels">
       <div class="placeholder" id="ph-parallels">
-        Load a results file (TSV / CSV / JSON from paraquolocator) to begin.
+        Load a results file (TSV / CSV / JSON from paraquolocator) to begin.<br>
+        <small style="opacity:.6">Tip: JSON results include the full text — no need to load source/target files separately.</small>
       </div>
       <table id="results-table" style="display:none">
         <thead id="results-head"></thead>
@@ -317,6 +318,8 @@ let sourceLines = null;  // string[]
 let targetLines = null;  // string[]
 let columns     = [];    // column names from the results file
 let selectedIdx = -1;
+let srcPathHint = '';    // path recorded from results file, if any
+let tgtPathHint = '';    // path recorded from results file, if any
 
 // ── File readers ──────────────────────────────────────────────────────────────
 
@@ -438,6 +441,8 @@ function parseCSV(text) {
 function parseResults(text, ext) {
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   let parsed, srcPath = '', tgtPath = '';
+  srcPathHint = '';
+  tgtPathHint = '';
 
   if (ext === 'json') {
     let data;
@@ -528,6 +533,8 @@ function setPathHint(which, fullPath) {
   el.textContent = name + ' ↑';
   el.title = `Recorded path: ${fullPath}\nPlease load this file manually.`;
   document.getElementById(`btn-${which}`).textContent = `Load ${name}…`;
+  if (which === 'source') srcPathHint = fullPath;
+  else                    tgtPathHint = fullPath;
 }
 
 // ── Table rendering ───────────────────────────────────────────────────────────
@@ -591,15 +598,20 @@ function refreshContext() {
   const srcLineNum = parseInt(row['source_line'], 10);
   const tgtLineNum = parseInt(row['target_line'] ?? row['target_chunk'], 10);
 
-  renderCtx(document.getElementById('ctx-src'), sourceLines, srcLineNum, ctx);
-  renderCtx(document.getElementById('ctx-tgt'), targetLines, tgtLineNum, ctx);
+  renderCtx(document.getElementById('ctx-src'), sourceLines, srcLineNum, ctx, srcPathHint);
+  renderCtx(document.getElementById('ctx-tgt'), targetLines, tgtLineNum, ctx, tgtPathHint);
 }
 
-function renderCtx(pane, lines, matchLine, ctx) {
+function renderCtx(pane, lines, matchLine, ctx, pathHint) {
   if (!lines || !matchLine) {
-    const msg = lines
-      ? 'No line number in result.'
-      : 'Load the text file to see context.<br><small style="opacity:.7">The path is shown in the top bar.</small>';
+    let msg;
+    if (lines) {
+      msg = 'No line number in result.';
+    } else if (pathHint) {
+      msg = `Load the text file to see context.<br><small style="opacity:.7">Path: <code style="user-select:all">${esc(pathHint)}</code></small>`;
+    } else {
+      msg = 'Use the <strong>Text…</strong> button above to load the original text file.';
+    }
     pane.innerHTML = `<div class="placeholder">${msg}</div>`;
     return;
   }

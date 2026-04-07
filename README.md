@@ -28,7 +28,9 @@ Open `paraquolocator.html` in any modern browser. Upload your files, set options
 
 ### Viewing results
 
-Open `viewer.html` in any modern browser. Load a TSV, CSV, or JSON results file produced by paraquolocator (command-line or browser), then optionally load the original source and target text files. Click any row in the results table to see the surrounding context for both texts side-by-side.
+Open `viewer.html` in any modern browser. Load a TSV, CSV, or JSON results file produced by paraquolocator (command-line or browser), then click any row in the results table to see the surrounding context for both texts side-by-side.
+
+> **Tip:** JSON output (`--format json`) embeds the full source and target texts in the results file, so context is available immediately without loading any additional files. TSV and CSV results require you to load the original text files separately using the Source / Target buttons.
 
 ### Command line
 
