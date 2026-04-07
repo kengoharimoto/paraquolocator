@@ -16,6 +16,7 @@ Matching is powered by [rapidfuzz](https://github.com/maxbachmann/RapidFuzz).
 - Customisable ignore-pattern file (regex-per-line) to skip colophons, separators, and other boilerplate
 - TSV output to stdout (easy to pipe into `sort`, `awk`, or a spreadsheet)
 - Progress indicator on stderr
+- **`viewer.html`** — browser-based results viewer: load a TSV/CSV/JSON output file alongside the original texts to browse matches and inspect source/target context side-by-side
 
 ---
 
@@ -24,6 +25,10 @@ Matching is powered by [rapidfuzz](https://github.com/maxbachmann/RapidFuzz).
 ### Browser (no installation)
 
 Open `paraquolocator.html` in any modern browser. Upload your files, set options, and click Run. Results can be downloaded as TSV. Only the `parallel` mode is available in the browser version.
+
+### Viewing results
+
+Open `viewer.html` in any modern browser. Load a TSV, CSV, or JSON results file produced by paraquolocator (command-line or browser), then optionally load the original source and target text files. Click any row in the results table to see the surrounding context for both texts side-by-side.
 
 ### Command line
 
