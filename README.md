@@ -86,8 +86,10 @@ options:
   --score N           Similarity cut-off 0–100
                         (default: 70 for 'parallel', 60 for 'quotes')
   --min-length N      Skip segments shorter than N characters (default: 30)
+  --ignore PATTERN    Regex pattern to skip (repeatable). Combined with --ignore-file
+                      if both are given. Either option replaces the built-in patterns.
   --ignore-file FILE  File of regex patterns to skip (one per line, # = comment).
-                      Replaces the built-in Sanskrit colophon patterns when supplied.
+                      Combined with --ignore if both are given.
   --header            Print a TSV header row before results
   --no-progress       Suppress the stderr progress indicator
   --workers N         Parallel threads: 1 = single-threaded (default),

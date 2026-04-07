@@ -356,21 +356,49 @@ _PARALLEL_COLUMNS = ["source_line", "source_text", "target_line", "target_text",
 _QUOTES_COLUMNS = ["source_line", "source_text", "target_chunk", "matched_excerpt", "target_text", "score"]
 
 
-def _write_output(results: list[dict], columns: list[str], fmt: str, header: bool) -> None:
+def _write_output(
+    results: list[dict],
+    columns: list[str],
+    fmt: str,
+    header: bool,
+    source_path: str = "",
+    target_path: str = "",
+    source_lines: list[str] | None = None,
+    target_lines: list[str] | None = None,
+) -> None:
     if fmt == "tsv":
+        if source_path:
+            print(f"# source_file: {source_path}")
+        if target_path:
+            print(f"# target_file: {target_path}")
         if header:
             print("\t".join(columns))
         for row in results:
             print("\t".join(str(row[col]) for col in columns))
     elif fmt == "csv":
         writer = csv.writer(sys.stdout)
+        if source_path:
+            writer.writerow([f"# source_file: {source_path}"])
+        if target_path:
+            writer.writerow([f"# target_file: {target_path}"])
         if header:
             writer.writerow(columns)
         for row in results:
             writer.writerow([row[col] for col in columns])
     elif fmt == "json":
-        print(json.dumps(results, ensure_ascii=False, indent=2))
+        output: dict = {
+            "source_file": source_path,
+            "target_file": target_path,
+            "source_lines": source_lines or [],
+            "target_lines": target_lines or [],
+            "results": results,
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
     elif fmt == "markdown":
+        if source_path:
+            print(f"<!-- source_file: {source_path} -->")
+        if target_path:
+            print(f"<!-- target_file: {target_path} -->")
         print("| " + " | ".join(columns) + " |")
         print("| " + " | ".join("---" for _ in columns) + " |")
         for row in results:
@@ -378,22 +406,49 @@ def _write_output(results: list[dict], columns: list[str], fmt: str, header: boo
             print("| " + " | ".join(cells) + " |")
 
 
+def _build_ignore_patterns(args: argparse.Namespace) -> list[str] | None:
+    """Merge --ignore-file and --ignore patterns.
+
+    Returns None (use built-in defaults) only when neither option is given.
+    Returns a list (possibly empty) whenever at least one option is given.
+    """
+    if not args.ignore_file and not args.ignore:
+        return None
+    patterns: list[str] = []
+    if args.ignore_file:
+        patterns.extend(load_ignore_patterns(args.ignore_file))
+    patterns.extend(args.ignore)
+    return patterns
+
+
 def cmd_parallel(args: argparse.Namespace) -> None:
-    ignore = load_ignore_patterns(args.ignore_file) if args.ignore_file else None
+    ignore = _build_ignore_patterns(args)
     matcher = TextMatcher(score=args.score, min_length=args.min_length, ignore_patterns=ignore)
     source = load_buffer(args.source, mode=args.source_mode, chunk_size=args.chunk_size)
     target = load_buffer(args.target, mode=args.target_mode, chunk_size=args.chunk_size)
     results = list(matcher.compare_lines(source, target, progress=not args.no_progress, workers=args.workers))
-    _write_output(results, _PARALLEL_COLUMNS, args.format, args.header)
+    _write_output(
+        results, _PARALLEL_COLUMNS, args.format, args.header,
+        source_path=str(Path(args.source).resolve()),
+        target_path=str(Path(args.target).resolve()),
+        source_lines=source,
+        target_lines=target,
+    )
 
 
 def cmd_quotes(args: argparse.Namespace) -> None:
-    ignore = load_ignore_patterns(args.ignore_file) if args.ignore_file else None
+    ignore = _build_ignore_patterns(args)
     matcher = TextMatcher(score=args.score, min_length=args.min_length, ignore_patterns=ignore)
     source = load_buffer(args.source, mode=args.source_mode)
     target = load_buffer(args.target, mode=args.target_mode, chunk_size=args.chunk_size)
     results = list(matcher.find_quotes(source, target, progress=not args.no_progress, workers=args.workers))
-    _write_output(results, _QUOTES_COLUMNS, args.format, args.header)
+    _write_output(
+        results, _QUOTES_COLUMNS, args.format, args.header,
+        source_path=str(Path(args.source).resolve()),
+        target_path=str(Path(args.target).resolve()),
+        source_lines=source,
+        target_lines=target,
+    )
 
 
 def _common_args(parser: argparse.ArgumentParser) -> None:
@@ -406,6 +461,8 @@ def _common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ignore-file", metavar="FILE", dest="ignore_file", default=None,
                         help="File of regex patterns to skip (one per line, # = comment). "
                              "Replaces the built-in Sanskrit colophon patterns when supplied.")
+    parser.add_argument("--ignore", metavar="PATTERN", dest="ignore", action="append", default=[],
+                        help="Regex pattern to skip (repeatable). Combined with --ignore-file if both are given.")
     parser.add_argument("--format", choices=["tsv", "csv", "json", "markdown"], default="tsv",
                         help="Output format (default: tsv). Header is always included for json and markdown.")
     parser.add_argument("--header", action="store_true", help="Print a header row (tsv and csv only)")
