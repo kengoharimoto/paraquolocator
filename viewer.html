@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paraquolocator · viewer</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --surface: #ffffff;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --highlight: #fef9c3;
+      --highlight-border: #f59e0b;
+      --text: #1a1a1a;
+      --muted: #777;
+      --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, monospace;
+      --header-h: 110px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* top bar */
+    #topbar {
+      flex: 0 0 auto;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    #topbar h1 { font-size: 1rem; white-space: nowrap; }
+    #topbar .sep { color: var(--muted); }
+
+    .file-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+    }
+    .file-label span { color: var(--muted); white-space: nowrap; }
+    .file-label strong { color: var(--accent); font-weight: 500; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .drop-btn {
+      position: relative;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .drop-btn input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-btn button {
+      pointer-events: none;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .drop-btn:hover button { border-color: var(--accent); color: var(--accent); }
+
+    #ctx-lines-wrap { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+    #ctx-lines-wrap input { width: 52px; padding: 0.25rem 0.4rem; border: 1px solid var(--border); border-radius: 5px; font-size: 0.8rem; }
+
+    /* three-pane body */
+    #body {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* parallels pane */
+    #pane-parallels {
+      flex: 0 0 42%;
+      overflow-y: auto;
+      border-bottom: 2px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* context row */
+    #pane-context {
+      flex: 1 1 0;
+      display: flex;
+      min-height: 0;
+    }
+
+    .ctx-pane {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .ctx-pane + .ctx-pane {
+      border-left: 2px solid var(--border);
+    }
+
+    .ctx-header {
+      flex: 0 0 auto;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ctx-header .filename { color: var(--accent); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+    .ctx-body {
+      flex: 1 1 0;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.55;
+      padding: 0.4rem 0;
+      background: var(--surface);
+    }
+
+    /* ── Parallels table ────────────────────────────────────────────────── */
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--bg);
+      text-align: left;
+      padding: 0.45rem 0.75rem;
+      border-bottom: 2px solid var(--border);
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    tbody tr { cursor: pointer; }
+    tbody tr:hover td { background: var(--accent-light); }
+    tbody tr.selected td { background: #dbeafe; }
+
+    tbody td {
+      padding: 0.4rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      font-size: 0.82rem;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .linenum { color: var(--muted); white-space: nowrap; font-size: 0.74rem; }
+    .score-cell { font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .text-cell { word-break: break-word; }
+
+    /* ── Context lines ──────────────────────────────────────────────────── */
+
+    .ctx-line {
+      display: flex;
+      padding: 0 0.6rem;
+      gap: 0.6rem;
+    }
+    .ctx-line.match {
+      background: var(--highlight);
+      border-left: 3px solid var(--highlight-border);
+      padding-left: calc(0.6rem - 3px);
+    }
+    .ctx-lnum {
+      flex: 0 0 3.5em;
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.72rem;
+      padding-top: 0.05em;
+      user-select: none;
+    }
+    .ctx-text { flex: 1; white-space: pre-wrap; word-break: break-word; }
+
+    /* ── Placeholder / empty states ─────────────────────────────────────── */
+
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: center;
+      padding: 1.5rem;
+      line-height: 1.7;
+    }
+
+    /* resize handle between top and bottom */
+    #resize-handle {
+      flex: 0 0 5px;
+      background: var(--border);
+      cursor: row-resize;
+      position: relative;
+    }
+    #resize-handle:hover, #resize-handle.dragging { background: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+  <div id="topbar">
+    <h1>paraquolocator <span style="color:var(--muted);font-weight:400">· viewer</span></h1>
+
+    <div class="file-label">
+      <div class="drop-btn">
+        <input type="file" id="file-results" accept=".tsv,.csv,.json">
+        <button>Results…</button>
+      </div>
+      <strong id="name-results">none</strong>
+    </div>
+
+    <span class="sep">|</span>
+
+    <div class="file-label" id="wrap-source">
+      <span>Source</span>
+      <div class="drop-btn">
+        <input type="file" id="file-source" accept=".txt">
+        <button id="btn-source">Text…</button>
+      </div>
+      <strong id="name-source" title="">none</strong>
+    </div>
+
+    <div class="file-label" id="wrap-target">
+      <span>Target</span>
+      <div class="drop-btn">
+        <input type="file" id="file-target" accept=".txt">
+        <button id="btn-target">Text…</button>
+      </div>
+      <strong id="name-target" title="">none</strong>
+    </div>
+
+    <div id="ctx-lines-wrap">
+      <label for="ctx-lines">Context lines</label>
+      <input type="number" id="ctx-lines" value="15" min="2" max="100">
+    </div>
+  </div>
+
+  <!-- ── Three panes ──────────────────────────────────────────────────── -->
+  <div id="body">
+
+    <!-- Parallels pane -->
+    <div id="pane-parallels">
+      <div class="placeholder" id="ph-parallels">
+        Load a results file (TSV / CSV / JSON from paraquolocator) to begin.
+      </div>
+      <table id="results-table" style="display:none">
+        <thead id="results-head"></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Resize handle -->
+    <div id="resize-handle"></div>
+
+    <!-- Context row -->
+    <div id="pane-context">
+
+      <div class="ctx-pane">
+        <div class="ctx-header">
+          Source <span class="filename" id="ctx-src-name"></span>
+        </div>
+        <div class="ctx-body" id="ctx-src">
+          <div class="placeholder">Select a match above to see source context.</div>
+        </div>
+      </div>
+
+      <div class="ctx-pane">
+        <div class="ctx-header">
+          Target <span class="filename" id="ctx-tgt-name"></span>
+        </div>
+        <div class="ctx-body" id="ctx-tgt">
+          <div class="placeholder">Select a match above to see target context.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let results     = [];    // parsed result rows
+let sourceLines = null;  // string[]
+let targetLines = null;  // string[]
+let columns     = [];    // column names from the results file
+let selectedIdx = -1;
+
+// ── File readers ──────────────────────────────────────────────────────────────
+
+function readText(file, cb) {
+  const r = new FileReader();
+  r.onload = e => cb(e.target.result);
+  r.readAsText(file, 'utf-8');
+}
+
+document.getElementById('file-results').addEventListener('change', function () {
+  const f = this.files[0]; if (!f) return;
+  document.getElementById('name-results').textContent = f.name;
+  readText(f, text => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    parseResults(text, ext);
+  });
+});
+
+document.getElementById('file-source').addEventListener('change', function () {
+  const f = this.files[0]; if (!f) return;
+  readText(f, text => applySourceLines(text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n'), f.name, ''));
+});
+
+document.getElementById('file-target').addEventListener('change', function () {
+  const f = this.files[0]; if (!f) return;
+  readText(f, text => applyTargetLines(text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n'), f.name, ''));
+});
+
+document.getElementById('ctx-lines').addEventListener('change', refreshContext);
+
+// ── Apply source / target lines ───────────────────────────────────────────────
+
+function basename(fullPath) {
+  return fullPath ? fullPath.replace(/.*[/\\]/, '') : '';
+}
+
+function applySourceLines(lines, displayName, fullPath) {
+  sourceLines = lines;
+  const name = displayName || basename(fullPath) || 'source';
+  document.getElementById('name-source').textContent = name;
+  document.getElementById('name-source').title = fullPath || name;
+  document.getElementById('ctx-src-name').textContent = fullPath || name;
+  document.getElementById('ctx-src-name').title = fullPath || name;
+  refreshContext();
+}
+
+function applyTargetLines(lines, displayName, fullPath) {
+  targetLines = lines;
+  const name = displayName || basename(fullPath) || 'target';
+  document.getElementById('name-target').textContent = name;
+  document.getElementById('name-target').title = fullPath || name;
+  document.getElementById('ctx-tgt-name').textContent = fullPath || name;
+  document.getElementById('ctx-tgt-name').title = fullPath || name;
+  refreshContext();
+}
+
+// ── Result parsing ────────────────────────────────────────────────────────────
+
+// Extract # source_file / # target_file comment lines, return remaining text + paths.
+function stripPathComments(text) {
+  let srcPath = '', tgtPath = '';
+  const kept = [];
+  for (const line of text.split('\n')) {
+    const m = line.match(/^#\s*(source_file|target_file):\s*(.+)$/);
+    if (m) {
+      if (m[1] === 'source_file') srcPath = m[2].trim();
+      else                        tgtPath = m[2].trim();
+    } else {
+      kept.push(line);
+    }
+  }
+  return { body: kept.join('\n'), srcPath, tgtPath };
+}
+
+function parseTSV(text) {
+  const allLines = text.trimEnd().split('\n').filter(l => l.trim() !== '');
+  if (allLines.length < 2) return { cols: [], rows: [] };
+  const cols = allLines[0].split('\t');
+  const data = allLines.slice(1).map(l => {
+    const cells = l.split('\t');
+    const obj = {};
+    cols.forEach((c, i) => obj[c] = cells[i] ?? '');
+    return obj;
+  });
+  return { cols, rows: data };
+}
+
+function parseCSV(text) {
+  function parseLine(line) {
+    const cells = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') { inQ = false; }
+        else cur += ch;
+      } else {
+        if (ch === '"') { inQ = true; }
+        else if (ch === ',') { cells.push(cur); cur = ''; }
+        else cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  }
+  const allLines = text.trimEnd().split('\n');
+  if (allLines.length < 2) return { cols: [], rows: [] };
+  const cols = parseLine(allLines[0]);
+  const data = allLines.slice(1).map(l => {
+    const cells = parseLine(l);
+    const obj = {};
+    cols.forEach((c, i) => obj[c] = cells[i] ?? '');
+    return obj;
+  });
+  return { cols, rows: data };
+}
+
+function parseResults(text, ext) {
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  let parsed, srcPath = '', tgtPath = '';
+
+  if (ext === 'json') {
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { alert('Invalid JSON: ' + e.message); return; }
+
+    // New structured format: { source_file, target_file, source_lines, target_lines, results }
+    if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.results)) {
+      srcPath = data.source_file || '';
+      tgtPath = data.target_file || '';
+      const rows = data.results;
+      if (!rows.length) { alert('No results in JSON file.'); return; }
+      parsed = { cols: Object.keys(rows[0]), rows };
+
+      // Auto-populate context panes from embedded lines
+      if (Array.isArray(data.source_lines) && data.source_lines.length) {
+        applySourceLines(data.source_lines, basename(srcPath), srcPath);
+      } else if (srcPath) {
+        setPathHint('source', srcPath);
+      }
+      if (Array.isArray(data.target_lines) && data.target_lines.length) {
+        applyTargetLines(data.target_lines, basename(tgtPath), tgtPath);
+      } else if (tgtPath) {
+        setPathHint('target', tgtPath);
+      }
+
+    // Legacy flat-array format
+    } else if (Array.isArray(data) && data.length) {
+      parsed = { cols: Object.keys(data[0]), rows: data };
+    } else {
+      alert('JSON must be either the structured paraquolocator format or a non-empty array.'); return;
+    }
+
+  } else if (ext === 'csv') {
+    const stripped = stripPathComments(text);
+    srcPath = stripped.srcPath; tgtPath = stripped.tgtPath;
+    parsed = parseCSV(stripped.body);
+    if (srcPath) setPathHint('source', srcPath);
+    if (tgtPath) setPathHint('target', tgtPath);
+
+  } else {
+    // TSV (default)
+    const stripped = stripPathComments(text);
+    srcPath = stripped.srcPath; tgtPath = stripped.tgtPath;
+    const body = stripped.body;
+    // Header detection: paraquolocator always puts a line number (integer) as
+    // the first field of every data row.  If the first field is non-numeric,
+    // the line is a column-name header.  Checking the whole line for the words
+    // "source"/"target" is unreliable because those words can appear in the
+    // matched text itself.
+    const firstDataLine = body.trimStart().split('\n')[0];
+    const firstField    = firstDataLine.split('\t')[0].trim();
+    const hasHeader     = firstField !== '' && !/^\d+$/.test(firstField);
+    if (hasHeader) {
+      parsed = parseTSV(body);
+    } else {
+      // No header row — assume parallel columns
+      const cols = ['source_line','source_text','target_line','target_text','score'];
+      const rows = body.trimEnd().split('\n')
+        .filter(l => l.trim() !== '')
+        .map(l => {
+          const cells = l.split('\t');
+          const obj = {};
+          cols.forEach((c, i) => obj[c] = cells[i] ?? '');
+          return obj;
+        });
+      parsed = { cols, rows };
+    }
+    if (srcPath) setPathHint('source', srcPath);
+    if (tgtPath) setPathHint('target', tgtPath);
+  }
+
+  if (!parsed.rows.length) { alert('No rows found in results file.'); return; }
+
+  results     = parsed.rows;
+  columns     = parsed.cols;
+  selectedIdx = -1;
+
+  renderTable();
+  document.getElementById('ph-parallels').style.display = 'none';
+  document.getElementById('results-table').style.display = '';
+}
+
+// Show a path hint on the file picker button without setting lines
+function setPathHint(which, fullPath) {
+  const name = basename(fullPath);
+  const el   = document.getElementById(`name-${which}`);
+  el.textContent = name + ' ↑';
+  el.title = `Recorded path: ${fullPath}\nPlease load this file manually.`;
+  document.getElementById(`btn-${which}`).textContent = `Load ${name}…`;
+}
+
+// ── Table rendering ───────────────────────────────────────────────────────────
+
+function tableColumns() {
+  const isQuotes = columns.includes('target_chunk');
+  if (isQuotes) {
+    return [
+      { key: 'source_line',     label: 'Src #',   cls: 'linenum' },
+      { key: 'source_text',     label: 'Source',  cls: 'text-cell' },
+      { key: 'target_chunk',    label: 'Tgt #',   cls: 'linenum' },
+      { key: 'matched_excerpt', label: 'Excerpt', cls: 'text-cell' },
+      { key: 'target_text',     label: 'Target',  cls: 'text-cell' },
+      { key: 'score',           label: 'Score',   cls: 'score-cell' },
+    ];
+  }
+  return [
+    { key: 'source_line', label: 'Src #',  cls: 'linenum' },
+    { key: 'source_text', label: 'Source', cls: 'text-cell' },
+    { key: 'target_line', label: 'Tgt #',  cls: 'linenum' },
+    { key: 'target_text', label: 'Target', cls: 'text-cell' },
+    { key: 'score',       label: 'Score',  cls: 'score-cell' },
+  ];
+}
+
+function renderTable() {
+  const cols  = tableColumns();
+  const head  = document.getElementById('results-head');
+  const tbody = document.getElementById('results-body');
+
+  head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = results.map((row, i) =>
+    `<tr data-idx="${i}">` +
+    cols.map(c => `<td class="${c.cls}">${esc(String(row[c.key] ?? ''))}</td>`).join('') +
+    '</tr>'
+  ).join('');
+
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-idx]');
+    if (!tr) return;
+    selectRow(parseInt(tr.dataset.idx, 10));
+  });
+}
+
+function selectRow(idx) {
+  selectedIdx = idx;
+  document.querySelectorAll('#results-body tr').forEach((tr, i) => {
+    tr.classList.toggle('selected', i === idx);
+  });
+  refreshContext();
+}
+
+// ── Context rendering ─────────────────────────────────────────────────────────
+
+function refreshContext() {
+  if (selectedIdx < 0) return;
+  const row = results[selectedIdx];
+  const ctx = parseInt(document.getElementById('ctx-lines').value, 10) || 15;
+
+  const srcLineNum = parseInt(row['source_line'], 10);
+  const tgtLineNum = parseInt(row['target_line'] ?? row['target_chunk'], 10);
+
+  renderCtx(document.getElementById('ctx-src'), sourceLines, srcLineNum, ctx);
+  renderCtx(document.getElementById('ctx-tgt'), targetLines, tgtLineNum, ctx);
+}
+
+function renderCtx(pane, lines, matchLine, ctx) {
+  if (!lines || !matchLine) {
+    const msg = lines
+      ? 'No line number in result.'
+      : 'Load the text file to see context.<br><small style="opacity:.7">The path is shown in the top bar.</small>';
+    pane.innerHTML = `<div class="placeholder">${msg}</div>`;
+    return;
+  }
+
+  const total = lines.length;
+  const start = Math.max(0, matchLine - 1 - ctx);
+  const end   = Math.min(total, matchLine + ctx);
+
+  const html = [];
+  for (let i = start; i < end; i++) {
+    const lineNo  = i + 1;
+    const isMatch = lineNo === matchLine;
+    html.push(
+      `<div class="${isMatch ? 'ctx-line match' : 'ctx-line'}" data-line="${lineNo}">` +
+      `<span class="ctx-lnum">${lineNo}</span>` +
+      `<span class="ctx-text">${esc(lines[i] ?? '')}</span>` +
+      `</div>`
+    );
+  }
+
+  pane.innerHTML = html.join('');
+  const matchEl = pane.querySelector('.ctx-line.match');
+  if (matchEl) matchEl.scrollIntoView({ block: 'center' });
+}
+
+// ── Resize handle ─────────────────────────────────────────────────────────────
+
+(function () {
+  const handle = document.getElementById('resize-handle');
+  const top    = document.getElementById('pane-parallels');
+  const body   = document.getElementById('body');
+  let dragging = false, startY = 0, startH = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startY   = e.clientY;
+    startH   = top.getBoundingClientRect().height;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = e.clientY - startY;
+    const bodyH = body.getBoundingClientRect().height;
+    const newH  = Math.max(80, Math.min(bodyH - 80, startH + delta));
+    top.style.flex = `0 0 ${newH}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+  });
+})();
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
